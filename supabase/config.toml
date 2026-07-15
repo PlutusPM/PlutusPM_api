@@ -91,6 +91,16 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/amenity-booking/index.ts"
 
+[functions.parse-coi-pdf]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/parse-coi-pdf/index.ts"
+
+[functions.compliance-report]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/compliance-report/index.ts"
+
 # ---- Analytics off for local ----
 [analytics]
 enabled = false
