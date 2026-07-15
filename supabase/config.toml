@@ -1,0 +1,81 @@
+# Supabase CLI config for CRE SaaS Platform
+# https://supabase.com/docs/guides/local-development/cli/config
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "platform", "portfolio", "ops", "tenant", "visitor", "vendor", "metrics", "graphql", "graphql_public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost:54321"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+port = 54325
+file_size_limit = "100MiB"
+
+[auth]
+enabled = true
+port = 54326
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000", "http://localhost:3001"]
+jwt_expiry = 3600
+enable_signup = true
+enable_confirmations = false
+enable_manual_linking = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+
+[auth.external.github]
+enabled = true
+client_id = "env(GITHUB_CLIENT_ID)"
+secret = "env(GITHUB_CLIENT_SECRET)"
+
+# ---- Functions ----
+[functions.health]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/health/index.ts"
+
+[functions.compliance-daily-check]
+enabled = true
+verify_jwt = false
+schedule = "0 9 * * *"
+entrypoint = "./functions/compliance-daily-check/index.ts"
+
+[functions.generate-qr]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/generate-qr/index.ts"
+
+[functions.send-visitor-pass]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/send-visitor-pass/index.ts"
+
+# ---- Analytics off for local ----
+[analytics]
+enabled = false

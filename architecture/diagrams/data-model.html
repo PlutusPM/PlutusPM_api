@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CRE SaaS Data Model</title>
+<style>
+body{font-family: system-ui, -apple-system, sans-serif; background:#0f172a; color:#e2e8f0; padding:40px; line-height:1.6}
+h1{color:#38bdf8}
+h2{color:#7dd3fc; border-bottom:1px solid #334155; padding-bottom:8px}
+.card{background:#1e293b; border:1px solid #334155; border-radius:12px; padding:20px; margin:16px 0}
+.schema{color:#fbbf24; font-weight:600}
+.table{margin-left:20px}
+.table b{color:#a5b4fc}
+.line{color:#475569}
+.accent{color:#34d399}
+.mermaid{overflow:auto}
+pre{background:#0b1220; padding:16px; border-radius:8px; overflow:auto; font-size:13px}
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>Commercial Real Estate SaaS — Data Model & Architecture</h1>
+
+<div class="card">
+<h2>Hierarchy: Portfolio → Sites → Everything</h2>
+<pre>
+Organization (SaaS Customer Tenant)
+  └─ Portfolio (e.g., "Northeast Portfolio")
+      └─ Site (CENTER: e.g., "100 Main St Tower")  ←  ALL DATA SCOPED HERE
+          ├─ Buildings (N per site)
+          │   └─ Floors
+          │       └─ Spaces (leasable, amenity, parking)
+          ├─ [ops] Assets, Work Orders, Inspections
+          ├─ [tenant] Tenants, Leases, Service Requests, Reservations
+          ├─ [visitor] Visitors, Visits, Passes, Access Logs
+          ├─ [vendor] Vendors, Contracts, COIs
+          └─ [metrics] Daily rollups, KPIs
+</pre>
+<p><span class="accent">Why site_id everywhere?</span> RLS = <code>can_access_site(site_id)</code>, GraphQL filter = site_id, Realtime channel = site_id, Analytics groupBy = site_id.</p>
+</div>
+
+<div class="grid">
+<div class="card">
+<h2>platform (shared)</h2>
+<div class="table">
+<b>organizations</b> <span class="line">— SaaS tenant</span><br>
+&nbsp;&nbsp;id, name, slug, owner_id, billing_tier<br><br>
+<b>profiles</b> <span class="line">— extends auth.users</span><br>
+&nbsp;&nbsp;id (fk auth.users), email, full_name, avatar_url<br><br>
+<b>memberships</b> <span class="line">— RBAC</span><br>
+&nbsp;&nbsp;org_id, user_id, role [owner|admin|portfolio_manager|site_manager|engineer|security|tenant...], site_ids[]<br><br>
+<b>audit_logs</b><br>
+&nbsp;&nbsp;org_id, site_id, user_id, action, entity, entity_id, diff jsonb<br><br>
+<b>notifications</b><br>
+&nbsp;&nbsp;org_id, site_id, user_id, type, payload jsonb<br>
+</div>
+</div>
+
+<div class="card">
+<h2>portfolio (core)</h2>
+<div class="table">
+<b>portfolios</b><br>
+&nbsp;&nbsp;id, org_id, name, description<br><br>
+<b>sites</b> <span class="accent">★ CENTER</span><br>
+&nbsp;&nbsp;id, org_id, portfolio_id, name, slug, type [office|retail|industrial|lab|mixed], address, city, timezone, location PostGIS, sq_ft, status, metadata jsonb<br><br>
+<b>buildings</b><br>
+&nbsp;&nbsp;id, site_id, name, floors_count<br><br>
+<b>floors</b><br>
+&nbsp;&nbsp;id, building_id, level_number, name, floorplan_path<br><br>
+<b>spaces</b><br>
+&nbsp;&nbsp;id, site_id, floor_id, building_id, name, code, type [leasable|common|amenity|parking], status [vacant|occupied|maintenance], area_sq_ft, tenant_id<br><br>
+<b>leases</b><br>
+&nbsp;&nbsp;id, site_id, space_id, tenant_id, start_date, end_date, monthly_rent<br>
+</div>
+</div>
+
+<div class="card">
+<h2>ops (Building Operations)</h2>
+<div class="table">
+<b>asset_categories</b> — HVAC, Electrical, Plumbing...<br><br>
+<b>assets</b><br>
+&nbsp;&nbsp;id, org_id, site_id, building_id, floor_id, space_id, category_id, name, qr_code, status, criticality, warranty_end<br><br>
+<b>work_order_templates</b> — for PM generation<br><br>
+<b>work_orders</b><br>
+&nbsp;&nbsp;id, site_id, asset_id, space_id, type [preventive|corrective|request|inspection], title, priority, status [open|in_progress|completed|overdue], assigned_to, sla_due_at, labor_hours, cost<br><br>
+<b>inspections</b> + <b>checklists</b><br>
+<b>inventory_items</b> + <b>parts</b>
+</div>
+</div>
+
+<div class="card">
+<h2>tenant (Tenant Experience)</h2>
+<div class="table">
+<b>tenants</b> — company occupying space<br>
+&nbsp;&nbsp;id, org_id, site_id, company_name, contact_email<br><br>
+<b>tenant_contacts</b> — linked to profiles<br><br>
+<b>service_requests</b><br>
+&nbsp;&nbsp;id, site_id, space_id, tenant_contact_id, title, status, → creates work_order<br><br>
+<b>reservations</b> — amenities, rooms, parking<br>
+&nbsp;&nbsp;id, site_id, space_id, reserved_by, start, end, status<br><br>
+<b>announcements</b> + <b>events</b>
+</div>
+</div>
+
+<div class="card">
+<h2>visitor (Visitor Management)</h2>
+<div class="table">
+<b>visitors</b> — person directory<br>
+<b>visits</b><br>
+&nbsp;&nbsp;id, site_id, visitor_id, host_user_id, purpose, status [preregistered|checked_in|checked_out], scheduled_at, checked_in_at, qr_code<br><br>
+<b>passes</b> — qr_token, expires_at<br><br>
+<b>access_logs</b> — device, access_point, granted/denied, timestamp<br><br>
+<b>access_credentials</b> — nfc, bluetooth, qr
+</div>
+</div>
+
+<div class="card">
+<h2>vendor (Compliance)</h2>
+<div class="table">
+<b>vendors</b><br>
+&nbsp;&nbsp;id, org_id, name, type [cleaning|hvac|security], status<br><br>
+<b>contracts</b><br>
+&nbsp;&nbsp;id, vendor_id, site_id, title, start/end, value, storage_path<br><br>
+<b>cois</b> — Certificates of Insurance<br>
+&nbsp;&nbsp;id, vendor_id, contract_id, type, issue_date, expiry_date, status [valid|expiring|expired], storage_path<br><br>
+<b>compliance_rules</b> — per org/vendor_type required COIs<br>
+<b>compliance_status</b> — vendor_id, site_id, status [compliant|non_compliant], issues jsonb
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>GraphQL + Scheduler Layer</h2>
+<div class="grid">
+<div>
+<h3 style="color:#86efac">GraphQL (pg_graphql)</h3>
+<pre>
+Endpoint: /graphql/v1
+- Auto gen from tables FKs -> nested queries
+- RLS enforced: user only sees allowed site_id
+- Mutations via SECURITY DEFINER functions
+  comment as @graphql(type: "mutation")
+
+Ex: opsCreateWorkOrder, 
+    tenantCreateServiceRequest,
+    visitorRegisterVisitor
+</pre>
+</div>
+<div>
+<h3 style="color:#fde68a">Scheduler (pg_cron + pg_net)</h3>
+<pre>
+pg_cron jobs (inside Postgres):
+  */15 *  SLA breach detection -> notifications
+  0 2 * * *  Generate PM work orders from templates
+  0 8 * * *  COI expiration scan (30/60/90 days)
+  0 3 * * *  Rollup metrics daily_site_stats
+  0 4 * * *  Cleanup expired visitor passes
+  0 9 * * 1  Lease expiration reminders
+
+pg_net -> calls Edge Function for emails/Slack:
+  select net.http_post(url:= '.../functions/v1/compliance-daily-check')
+
+Observability:
+  select * from cron.job_run_details order by start_time desc;
+</pre>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>RLS Example (All Tables)</h2>
+<pre>
+alter table portfolio.sites enable row level security;
+
+create policy "access sites" on portfolio.sites for select
+using (platform.can_access_site(id));
+
+-- helper:
+create function platform.can_access_site(p_site_id uuid) returns boolean
+security definer as $$
+  select exists (
+    select 1 from platform.memberships
+    where user_id = auth.uid()
+    and org_id = (select org_id from portfolio.sites where id = p_site_id)
+    and (site_ids is null or p_site_id = any(site_ids))
+  );
+$$;
+</pre>
+</div>
+
+</body>
+</html>

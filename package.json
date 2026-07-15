@@ -1,0 +1,20 @@
+{
+  "name": "cre-saas-supabase-backend",
+  "version": "0.1.0",
+  "description": "Commercial Real Estate SaaS - Supabase Backend - Portfolio -> Sites -> Everything on Site",
+  "private": true,
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "functions:serve": "supabase functions serve --env-file .env.local --debug",
+    "functions:deploy": "supabase functions deploy",
+    "gen:types": "supabase gen types typescript --local > supabase/types.ts",
+    "lint:sql": "echo 'SQL lint via supabase db lint'"
+  },
+  "keywords": ["supabase", "postgres", "graphql", "cre", "property management", "saas", "pg_cron", "postgis"],
+  "devDependencies": {},
+  "dependencies": {}
+}
