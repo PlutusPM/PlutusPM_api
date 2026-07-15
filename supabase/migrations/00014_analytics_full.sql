@@ -186,12 +186,12 @@ select
   d.visitor_count,
   d.avg_response_time_hours,
   d.labor_hours,
-  -- Benchmark vs portfolio avg
-  avg(d.occupancy_rate) over (partition by d.portfolio_id, d.date) as portfolio_avg_occupancy,
-  avg(d.compliance_rate) over (partition by d.portfolio_id, d.date) as portfolio_avg_compliance,
-  avg(d.work_orders_open) over (partition by d.portfolio_id, d.date) as portfolio_avg_open_wos,
-  rank() over (partition by d.portfolio_id, d.date order by d.occupancy_rate desc nulls last) as occupancy_rank,
-  rank() over (partition by d.portfolio_id, d.date order by d.compliance_rate desc nulls last) as compliance_rank
+  -- Benchmark vs portfolio avg - fixed d.portfolio_id does not exist, use s.portfolio_id
+  avg(d.occupancy_rate) over (partition by s.portfolio_id, d.date) as portfolio_avg_occupancy,
+  avg(d.compliance_rate) over (partition by s.portfolio_id, d.date) as portfolio_avg_compliance,
+  avg(d.work_orders_open) over (partition by s.portfolio_id, d.date) as portfolio_avg_open_wos,
+  rank() over (partition by s.portfolio_id, d.date order by d.occupancy_rate desc nulls last) as occupancy_rank,
+  rank() over (partition by s.portfolio_id, d.date order by d.compliance_rate desc nulls last) as compliance_rank
 from metrics.portfolio_daily_stats pd
 join portfolio.portfolios p on p.id = pd.portfolio_id
 join portfolio.sites s on s.portfolio_id = p.id
