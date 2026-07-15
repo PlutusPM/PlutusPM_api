@@ -8,8 +8,14 @@
 -- Comment annotations to expose via GraphQL
 -- pg_graphql uses comments like '@graphql({"type": "query"})'
 
--- Ensure graphql schema has comment with inflect
-select graphql.rebuild_schema();
+-- Ensure graphql schema rebuilds (if function exists - in newer pg_graphql it auto-rebuilds)
+do $$
+begin
+  perform graphql.rebuild_schema();
+exception when undefined_function or others then
+  raise notice 'graphql.rebuild_schema() not available - skipping (auto-rebuilds on DDL in newer pg_graphql)';
+end;
+$$;
 
 -----------------------------
 -- CUSTOM GRAPHQL FUNCTIONS (Examples for frontend)
@@ -388,7 +394,7 @@ $$;
 -----------------------------
 -- Note: In Supabase cloud, these need to be run as postgres user or via dashboard cron UI
 -- We'll create them here; they will be created when migration runs as postgres
--- For local supabase start, cron is enabled
+-- For local supabase start, cron is enabled - wrapped in exception handling to not fail migration if cron not available
 
 do $$
 begin
@@ -399,58 +405,80 @@ begin
   perform cron.unschedule('rollup-daily-metrics') where exists (select 1 from cron.job where jobname='rollup-daily-metrics');
   perform cron.unschedule('cleanup-expired-visits') where exists (select 1 from cron.job where jobname='cleanup-expired-visits');
   perform cron.unschedule('lease-expiration-check') where exists (select 1 from cron.job where jobname='lease-expiration-check');
-exception when others then null;
+exception when others then 
+  raise notice 'cron.unschedule failed - cron extension may not be installed or not postgres role, skipping';
 end $$;
 
 -- SLA every 15 minutes
-select cron.schedule(
-  'check-sla-breaches',
-  '*/15 * * * *',
-  $$ select ops.check_sla_breaches(); $$
-);
+do $$ begin
+  perform cron.schedule(
+    'check-sla-breaches',
+    '*/15 * * * *',
+    $$ select ops.check_sla_breaches(); $$
+  );
+exception when others then raise notice 'cron.schedule check-sla-breaches failed: %', SQLERRM;
+end $$;
 
 -- PM work orders daily 2am
-select cron.schedule(
-  'generate-pm-work-orders',
-  '0 2 * * *',
-  $$ select ops.generate_pm_work_orders(); $$
-);
+do $$ begin
+  perform cron.schedule(
+    'generate-pm-work-orders',
+    '0 2 * * *',
+    $$ select ops.generate_pm_work_orders(); $$
+  );
+exception when others then raise notice 'cron.schedule generate-pm-work-orders failed: %', SQLERRM;
+end $$;
 
 -- COI expiration hourly 8am-6pm
-select cron.schedule(
-  'check-coi-expiration',
-  '0 8-18 * * *',
-  $$ select vendor.check_coi_expirations(); $$
-);
+do $$ begin
+  perform cron.schedule(
+    'check-coi-expiration',
+    '0 8-18 * * *',
+    $$ select vendor.check_coi_expirations(); $$
+  );
+exception when others then raise notice 'cron.schedule check-coi-expiration failed: %', SQLERRM;
+end $$;
 
 -- Daily metrics 3am
-select cron.schedule(
-  'rollup-daily-metrics',
-  '0 3 * * *',
-  $$ select metrics.rollup_daily_stats(current_date - 1); $$
-);
+do $$ begin
+  perform cron.schedule(
+    'rollup-daily-metrics',
+    '0 3 * * *',
+    $$ select metrics.rollup_daily_stats(current_date - 1); $$
+  );
+exception when others then raise notice 'cron.schedule rollup-daily-metrics failed: %', SQLERRM;
+end $$;
 
 -- Cleanup expired visits daily 4am
-select cron.schedule(
-  'cleanup-expired-visits',
-  '0 4 * * *',
-  $$
-  delete from visitor.visits where status = 'checked_out' and checked_out_at < now() - interval '90 days';
-  delete from platform.notifications where created_at < now() - interval '90 days' and is_read = true;
-  $$
-);
+do $$ begin
+  perform cron.schedule(
+    'cleanup-expired-visits',
+    '0 4 * * *',
+    $$
+    delete from visitor.visits where status = 'checked_out' and checked_out_at < now() - interval '90 days';
+    delete from platform.notifications where created_at < now() - interval '90 days' and is_read = true;
+    $$
+  );
+exception when others then raise notice 'cron.schedule cleanup-expired-visits failed: %', SQLERRM;
+end $$;
 
 -- Lease expiration weekly Monday 9am
-select cron.schedule(
-  'lease-expiration-check',
-  '0 9 * * 1',
-  $$
-  insert into platform.notifications (org_id, site_id, type, title, body, payload)
-  select org_id, site_id, 'lease_expiring', 'Lease expiring: ' || coalesce((select name from portfolio.spaces where id = space_id), 'space'), 'Lease ends ' || end_date::text, jsonb_build_object('lease_id', id, 'space_id', space_id, 'days_left', (end_date - current_date))
-  from portfolio.leases
-  where status = 'active' and end_date between current_date and current_date + interval '30 days';
-  $$
-);
+do $$ begin
+  perform cron.schedule(
+    'lease-expiration-check',
+    '0 9 * * 1',
+    $$
+    insert into platform.notifications (org_id, site_id, type, title, body, payload)
+    select org_id, site_id, 'lease_expiring', 'Lease expiring: ' || coalesce((select name from portfolio.spaces where id = space_id), 'space'), 'Lease ends ' || end_date::text, jsonb_build_object('lease_id', id, 'space_id', space_id, 'days_left', (end_date - current_date))
+    from portfolio.leases
+    where status = 'active' and end_date between current_date and current_date + interval '30 days';
+    $$
+  );
+exception when others then raise notice 'cron.schedule lease-expiration-check failed: %', SQLERRM;
+end $$;
 
--- Grant cron usage
-grant usage on schema cron to postgres;
+-- Grant cron usage - safe with exception
+do $$ begin
+  execute 'grant usage on schema cron to postgres';
+exception when others then raise notice 'grant on schema cron failed - may not exist yet';
+end $$;

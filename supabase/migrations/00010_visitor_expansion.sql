@@ -413,12 +413,17 @@ grant usage on all sequences in schema visitor to authenticated, service_role;
 alter publication supabase_realtime add table visitor.passes;
 alter publication supabase_realtime add table visitor.access_logs;
 
--- Cron for expired passes cleanup hourly
-select cron.schedule(
-  'expire-visitor-passes',
-  '0 * * * *',
-  $$
-  update visitor.passes set status='expired' where status='active' and valid_until < now();
-  update visitor.visits set status='no_show' where status='preregistered' and scheduled_at < now() - interval '2 hours';
-  $$
-) where not exists (select 1 from cron.job where jobname='expire-visitor-passes');
+-- Cron for expired passes cleanup hourly - safe with exception handling
+do $$ begin
+  if not exists (select 1 from cron.job where jobname='expire-visitor-passes') then
+    perform cron.schedule(
+      'expire-visitor-passes',
+      '0 * * * *',
+      $$
+      update visitor.passes set status='expired' where status='active' and valid_until < now();
+      update visitor.visits set status='no_show' where status='preregistered' and scheduled_at < now() - interval '2 hours';
+      $$
+    );
+  end if;
+exception when others then raise notice 'cron.schedule expire-visitor-passes failed: %', SQLERRM;
+end $$;

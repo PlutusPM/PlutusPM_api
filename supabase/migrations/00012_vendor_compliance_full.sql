@@ -588,21 +588,24 @@ alter publication supabase_realtime add table vendor.vendor_approvals;
 alter publication supabase_realtime add table vendor.compliance_status;
 alter publication supabase_realtime add table vendor.notification_rules;
 
--- Crons
-select cron.schedule(
-  'evaluate-vendor-compliance',
-  '0 6 * * *',
-  $$ select vendor.evaluate_all_compliance(); $$
-) where not exists (select 1 from cron.job where jobname='evaluate-vendor-compliance');
+-- Crons - safe with exception handling
+do $$ begin
+  if not exists (select 1 from cron.job where jobname='evaluate-vendor-compliance') then
+    perform cron.schedule('evaluate-vendor-compliance', '0 6 * * *', $$ select vendor.evaluate_all_compliance(); $$);
+  end if;
+exception when others then raise notice 'cron.schedule evaluate-vendor-compliance failed: %', SQLERRM;
+end $$;
 
-select cron.schedule(
-  'check-contract-expirations',
-  '0 7 * * *',
-  $$ select vendor.check_contract_expirations(); $$
-) where not exists (select 1 from cron.job where jobname='check-contract-expirations');
+do $$ begin
+  if not exists (select 1 from cron.job where jobname='check-contract-expirations') then
+    perform cron.schedule('check-contract-expirations', '0 7 * * *', $$ select vendor.check_contract_expirations(); $$);
+  end if;
+exception when others then raise notice 'cron.schedule check-contract-expirations failed: %', SQLERRM;
+end $$;
 
-select cron.schedule(
-  'check-document-expirations',
-  '0 7 * * *',
-  $$ select vendor.check_document_expirations(); $$
-) where not exists (select 1 from cron.job where jobname='check-document-expirations');
+do $$ begin
+  if not exists (select 1 from cron.job where jobname='check-document-expirations') then
+    perform cron.schedule('check-document-expirations', '0 7 * * *', $$ select vendor.check_document_expirations(); $$);
+  end if;
+exception when others then raise notice 'cron.schedule check-document-expirations failed: %', SQLERRM;
+end $$;
