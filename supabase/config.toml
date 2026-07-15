@@ -1,4 +1,8 @@
-# Supabase CLI config for CRE SaaS Platform
+# Supabase CLI config for PlutusPM CRE SaaS Platform
+# Fixed for Supabase CLI v2.100+ (2024-2026)
+# - Removed invalid keys: storage.port, auth.port, auth.enable_confirmations
+# - Removed functions.*.schedule (use pg_cron + pg_net instead - see migrations)
+# - Renamed [inbucket] -> [local_smtp] (new preferred, inbucket deprecated) - both kept for compat but local_smtp preferred
 # https://supabase.com/docs/guides/local-development/cli/config
 
 [api]
@@ -13,12 +17,24 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+
 [studio]
 enabled = true
 port = 54323
-api_url = "http://localhost:54321"
+api_url = "http://127.0.0.1:54321"
 
-[inbucket]
+# Email testing (Mailpit) - new preferred name [local_smtp] replaces deprecated [inbucket]
+# If your CLI is older than v2.108 and complains about invalid key local_smtp, change this back to [inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 smtp_port = 54325
@@ -26,18 +42,19 @@ pop3_port = 54326
 
 [storage]
 enabled = true
-port = 54325
 file_size_limit = "100MiB"
+# Note: storage.port removed - invalid in new CLI
 
 [auth]
 enabled = true
-port = 54326
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000", "http://localhost:3001"]
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000", "http://localhost:3000", "http://localhost:3001"]
 jwt_expiry = 3600
 enable_signup = true
-enable_confirmations = false
 enable_manual_linking = true
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+# Removed invalid keys: port, enable_confirmations (now under [auth.email])
 
 [auth.email]
 enable_signup = true
@@ -54,7 +71,11 @@ enabled = true
 client_id = "env(GITHUB_CLIENT_ID)"
 secret = "env(GITHUB_CLIENT_SECRET)"
 
-# ---- Functions ----
+# ---- Edge Functions ----
+# NOTE: schedule key removed - invalid in newer CLI. Scheduling is done via pg_cron in migrations (00004, 00007, etc)
+# using cron.schedule() + net.http_post to call functions. See docs/04-scheduler-strategy.md
+# If you need scheduled functions via config, use supabase dashboard > Edge Functions > Cron (new feature)
+
 [functions.health]
 enabled = true
 verify_jwt = false
@@ -63,8 +84,8 @@ entrypoint = "./functions/health/index.ts"
 [functions.compliance-daily-check]
 enabled = true
 verify_jwt = false
-schedule = "0 9 * * *"
 entrypoint = "./functions/compliance-daily-check/index.ts"
+# schedule removed - controlled via pg_cron in DB (see migration 00004)
 
 [functions.generate-qr]
 enabled = true
@@ -104,14 +125,13 @@ entrypoint = "./functions/compliance-report/index.ts"
 [functions.scheduled-reports]
 enabled = true
 verify_jwt = false
-schedule = "0 7 * * *"
 entrypoint = "./functions/scheduled-reports/index.ts"
+# schedule removed - controlled via pg_cron
 
 [functions.export-data]
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/export-data/index.ts"
 
-# ---- Analytics off for local ----
 [analytics]
 enabled = false
