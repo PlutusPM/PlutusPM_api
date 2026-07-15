@@ -404,24 +404,7 @@ begin
     -- Reservations
     select count(*) into res_c from tenant.reservations where site_id = rec.id and start_time::date = p_date;
 
-    -- Work orders stats (existing)
-    select
-      count(*) filter (where status in ('open','in_progress','on_hold') and created_at::date <= p_date and (completed_at is null or completed_at::date > p_date)),
-      count(*) filter (where status='completed' and completed_at::date = p_date),
-      count(*) filter (where status='overdue'),
-      count(*) filter (where status='overdue' and sla_due_at::date = p_date),
-      count(*) filter (where scheduled_at::date = p_date),
-      count(*) filter (where created_at::date = p_date)
-    into wo_open, wo_closed, wo_overdue, sla_b, visit_c, sr_c
-    from (
-      select status, sla_due_at, created_at, completed_at from ops.work_orders where site_id = rec.id
-      union all
-      select 'checked_in'::text, null, scheduled_at, null from visitor.visits where site_id = rec.id and scheduled_at::date = p_date
-      union all
-      select status::text, null, created_at, null from tenant.service_requests where site_id = rec.id and created_at::date = p_date
-    ) combined;
-
-    -- Actually do separate queries for clarity (above union is messy, recalc properly)
+    -- Work orders stats - separate queries for clarity
     select count(*) filter (where status in ('open','in_progress','on_hold') and created_at::date <= p_date and (completed_at is null or completed_at::date > p_date)),
            count(*) filter (where status='completed' and completed_at::date = p_date),
            count(*) filter (where status='overdue'),
