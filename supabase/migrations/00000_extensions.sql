@@ -1,21 +1,30 @@
 -- 00000_extensions.sql
 -- Enable all required extensions for CRE SaaS Platform
 
--- Core
-create extension if not exists "uuid-ossp" with schema extensions;
-create extension if not exists "pgcrypto" with schema extensions;
+-- Core - install critical ones in PUBLIC so functions uuid_generate_v4(), gen_random_uuid() are in public search_path without needing schema qualification
+-- This fixes ERROR: function uuid_generate_v4() does not exist, gen_random_uuid() does not exist
+drop extension if exists "uuid-ossp" cascade;
+drop extension if exists "pgcrypto" cascade;
+create extension "uuid-ossp" with schema public;
+create extension "pgcrypto" with schema public;
 create extension if not exists "pg_graphql" with schema graphql;
 create extension if not exists "pg_stat_statements" with schema extensions;
 
--- Search & Geo (as per architecture: portfolio sites need geo + search)
-create extension if not exists "postgis" with schema extensions;
-create extension if not exists "pg_trgm" with schema extensions;
--- ltree for hierarchical spaces/assets if needed later (optional)
-create extension if not exists "ltree" with schema extensions;
+-- Search & Geo - install in PUBLIC so types (geography, ltree) and functions (similarity, st_distance) are in public search_path
+-- This fixes ERROR: type "geography" does not exist (SQLSTATE 42704) when search_path doesn't include extensions
+-- Drop first if exists in wrong schema (e.g., extensions) to ensure it ends up in public for fresh and existing DBs
+drop extension if exists "postgis" cascade;
+drop extension if exists "pg_trgm" cascade;
+drop extension if exists "ltree" cascade;
+create extension "postgis" with schema public;
+create extension "pg_trgm" with schema public;
+create extension "ltree" with schema public;
 
 -- Scheduler (pg_cron + pg_net as per scheduler strategy)
+-- pg_cron must be in pg_catalog, pg_net in public (creates net schema for http calls)
 create extension if not exists "pg_cron" with schema pg_catalog;
-create extension if not exists "pg_net" with schema extensions;
+drop extension if exists "pg_net" cascade;
+create extension "pg_net" with schema public;
 
 -- Supabase vault for secrets (optional but useful)
 -- create extension if not exists "supabase_vault" with schema vault;

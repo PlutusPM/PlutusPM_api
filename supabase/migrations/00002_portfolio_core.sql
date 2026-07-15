@@ -92,8 +92,8 @@ create table portfolio.sites (
   zip_code text,
   country text default 'US',
   timezone text default 'America/New_York',
-  -- Geo
-  location geography(point, 4326), -- PostGIS
+  -- Geo - use public.geography explicitly since postgis now in public schema (fixed for type geography does not exist error)
+  location public.geography(point, 4326),
   latitude double precision,
   longitude double precision,
   -- Physical
@@ -126,14 +126,15 @@ create trigger set_sites_updated_at
   before update on portfolio.sites
   for each row execute function public.handle_updated_at();
 
--- Function to sync lat/lng -> geography
+-- Function to sync lat/lng -> geography - include public + extensions in search_path for PostGIS functions
 create or replace function portfolio.sync_site_geo()
 returns trigger
 language plpgsql
+set search_path = portfolio, platform, public, extensions
 as $$
 begin
   if new.latitude is not null and new.longitude is not null then
-    new.location := st_setsrid(st_makepoint(new.longitude, new.latitude), 4326)::geography;
+    new.location := public.st_setsrid(public.st_makepoint(new.longitude, new.latitude), 4326)::public.geography;
   end if;
   return new;
 end;
@@ -331,7 +332,7 @@ create or replace function portfolio.search_sites(search_query text, p_org_id uu
 returns setof portfolio.sites
 language plpgsql
 security definer
-set search_path = portfolio, platform, public
+set search_path = portfolio, platform, public, extensions
 as $$
 begin
   return query
@@ -344,7 +345,7 @@ begin
     or s.slug ilike '%'||search_query||'%'
   )
   and platform.can_access_site(s.id)
-  order by similarity(s.name, search_query) desc
+  order by public.similarity(s.name, search_query) desc
   limit limit_count;
 end;
 $$;
@@ -362,17 +363,17 @@ returns table (
 )
 language sql
 security definer
-set search_path = portfolio, platform, public
+set search_path = portfolio, platform, public, extensions
 as $$
   select 
     s.id,
     s.name,
     s.address_line1,
     s.city,
-    st_distance(s.location, st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography) as distance_meters
+    public.st_distance(s.location, public.st_setsrid(public.st_makepoint(p_lng, p_lat), 4326)::public.geography) as distance_meters
   from portfolio.sites s
   where s.location is not null
-  and st_dwithin(s.location, st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography, radius_meters)
+  and public.st_dwithin(s.location, public.st_setsrid(public.st_makepoint(p_lng, p_lat), 4326)::public.geography, radius_meters)
   and platform.can_access_site(s.id)
   order by distance_meters
   limit limit_count;
