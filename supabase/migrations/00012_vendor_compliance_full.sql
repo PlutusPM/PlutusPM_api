@@ -576,7 +576,7 @@ $$;
 
 -- Grants
 grant all on all tables in schema vendor to service_role;
-grant usage, select, insert, update, delete on all tables in schema vendor to authenticated;
+grant select, insert, update, delete on all tables in schema vendor to authenticated;
 grant usage on all sequences in schema vendor to authenticated, service_role;
 
 -- Realtime

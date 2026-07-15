@@ -406,7 +406,7 @@ comment on function visitor.get_daily_visitor_stats(uuid, date) is '@graphql({"t
 
 -- Grants
 grant all on all tables in schema visitor to service_role;
-grant usage, select, insert, update, delete on all tables in schema visitor to authenticated;
+grant select, insert, update, delete on all tables in schema visitor to authenticated;
 grant usage on all sequences in schema visitor to authenticated, service_role;
 
 -- Realtime

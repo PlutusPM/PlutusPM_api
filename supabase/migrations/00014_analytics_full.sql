@@ -629,7 +629,7 @@ comment on function metrics.get_portfolio_kpis(uuid) is '@graphql({"type": "quer
 
 -- Grants
 grant all on all tables in schema metrics to service_role;
-grant usage, select, insert, update, delete on all tables in schema metrics to authenticated;
+grant select, insert, update, delete on all tables in schema metrics to authenticated;
 grant usage on all sequences in schema metrics to authenticated, service_role;
 
 -- Realtime for reports

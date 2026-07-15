@@ -439,7 +439,7 @@ comment on function platform.create_organization(text, text) is '@graphql({"type
 -- Grant all on platform tables to service_role (bypass RLS) and authenticated for RLS-filtered access
 grant all on all tables in schema platform to service_role;
 grant all on all sequences in schema platform to service_role;
-grant usage, select, insert, update, delete on all tables in schema platform to authenticated;
+grant select, insert, update, delete on all tables in schema platform to authenticated;
 grant usage on all sequences in schema platform to authenticated;
 
 -- Realtime for notifications, memberships

@@ -553,7 +553,7 @@ $$;
 
 -- Grant permissions
 grant all on all tables in schema ops to service_role;
-grant usage, select, insert, update, delete on all tables in schema ops to authenticated;
+grant select, insert, update, delete on all tables in schema ops to authenticated;
 grant usage on all sequences in schema ops to authenticated, service_role;
 
 -- Realtime for new tables

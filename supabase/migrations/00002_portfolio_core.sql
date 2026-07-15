@@ -430,7 +430,7 @@ comment on function portfolio.create_site_full(uuid, uuid, text, text, text, tex
 -- Grants
 grant all on all tables in schema portfolio to service_role;
 grant all on all sequences in schema portfolio to service_role;
-grant usage, select, insert, update, delete on all tables in schema portfolio to authenticated;
+grant select, insert, update, delete on all tables in schema portfolio to authenticated;
 grant usage on all sequences in schema portfolio to authenticated;
 
 -- Realtime

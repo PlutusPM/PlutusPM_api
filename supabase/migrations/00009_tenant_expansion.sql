@@ -317,7 +317,7 @@ create trigger trg_sr_notify
 
 -- Grants
 grant all on all tables in schema tenant to service_role;
-grant usage, select, insert, update, delete on all tables in schema tenant to authenticated;
+grant select, insert, update, delete on all tables in schema tenant to authenticated;
 grant usage on all sequences in schema tenant to authenticated, service_role;
 
 -- Realtime
