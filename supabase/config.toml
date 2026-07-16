@@ -133,5 +133,10 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/export-data/index.ts"
 
+[functions.graphql-gateway]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/graphql-gateway/index.ts"
+
 [analytics]
 enabled = false
