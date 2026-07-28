@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "PlutusPM CRE SaaS - GraphQL (Fixed)",
-    "description": "GraphQL-only collection for PlutusPM backend (PostGIS + RLS + 6 schemas). All queries use correct field names after fix 00016+00017 (extra_search_path + SELECT grants + introspection enabled). Use with anonKey + userJwt from Auth.\n\nHow to use:\n1. Import this collection + PlutusPM.postman_environment.json\n2. Set env: supabaseUrl=http://127.0.0.1:54321, anonKey from supabase status\n3. Run Auth > Sign Up / Sign In to auto-save userJwt + userId\n4. Run Introspection to see all available fields, then run domain queries\n\nField naming after fix: No schema prefix for unique tables (portfoliosCollection, sitesCollection, organizationsCollection, etc). If you still get Unknown field, run Introspection query to list actual names.\n\nBuilt after fixing: config.toml extra_search_path, geography type, nested $$, publication duplicate, d.portfolio_id, graphql introspection disabled, graphql_public owner error.",
+    "name": "PlutusPM CRE SaaS - GraphQL + REST (Verified)",
+    "description": "GraphQL-first collection for the PlutusPM backend (PostGIS + RLS + 7 schemas). Every request in this collection was re-verified live against a running local Supabase instance and PostgREST/pg_graphql on 2026-07-28 - broken requests from the prior version (wrong query/mutation keyword, stale `input: {}` argument style, renamed/removed fields) were fixed, and the following requests were switched from GraphQL to REST because pg_graphql does not expose them (either the underlying view has no primary key, or the function isn't picked up by pg_graphql's introspection): Nearby Sites, Create Site Full, Create Work Order, Generate Pass, Validate Pass, Daily Visitor Stats, Upload Tenant Document, Apply Stripe Webhook Event, Debug - Check Grants, Building Benchmark.\n\nHow to use:\n1. Import this collection + PlutusPM.postman_environment.json\n2. Set env: supabaseUrl=http://127.0.0.1:54321, anonKey/serviceRoleKey from `supabase status`\n3. Run Auth > Sign Up / Sign In to auto-save userJwt + userId\n4. Run Introspection to see all available fields, then run domain queries\n\nField naming: pg_graphql exposes custom RPC functions as flat named arguments (e.g. `createReservation(pSiteId: ..., pSpaceId: ...)`), NOT as a nested `input: {}` object, and whether a field is a Query or a Mutation is determined by the underlying SQL function's volatility (STABLE/IMMUTABLE -> Query, VOLATILE -> Mutation) - the `@graphql({...})` comments on some functions are decorative only and are not honored by this pg_graphql version. If you get \"Unknown field\", re-run Introspection to check the current name/operation type, since these can drift as the schema evolves.\n\nCheck-in note: `checkInVisitor`'s `pToken` must be the QR token from a `visitor.passes` row (see Generate Pass), not the visit's own `qrCode`/`qr_code` - the two are different values.\n\nNew domains added for migrations 00019-00030 (tenant occupancy/lease model, tenant documents, structured settings, communication campaigns, billing + Stripe, space enum expansion, documentation/KB, site content, tenant bulk import, webhook log + activity feed): see folders 8-16.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -14,6 +14,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
@@ -23,16 +24,23 @@
                   "    console.log('JWT saved');",
                   "  }",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -40,8 +48,14 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/auth/v1/signup",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["auth", "v1", "signup"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "v1",
+                "signup"
+              ]
             }
           }
         },
@@ -51,6 +65,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
@@ -59,16 +74,23 @@
                   "  pm.environment.set('refreshToken', json.refresh_token);",
                   "  console.log('JWT saved, userId:', json.user.id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -76,9 +98,20 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/auth/v1/token?grant_type=password",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["auth", "v1", "token"],
-              "query": [{ "key": "grant_type", "value": "password" }]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "v1",
+                "token"
+              ],
+              "query": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                }
+              ]
             }
           }
         }
@@ -92,9 +125,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -105,8 +150,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -115,9 +165,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -128,31 +190,53 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Debug - Check Grants",
+          "name": "Debug - Check Grants (REST - not exposed via GraphQL)",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "query DebugGrants {\n  graphqlTablesDebugCollection {\n    edges {\n      node {\n        schemaName\n        tableName\n        anonCanSelect: anonSchemaUsage\n        authCanSelect: authSchemaUsage\n        anonSelect: anonSelect\n        authSelect: authSelect\n      }\n    }\n  }\n}",
-                "variables": ""
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "public",
+                "type": "text"
               }
-            },
+            ],
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/graphql_tables_debug?limit=50",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "graphql_tables_debug"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
             }
           }
         }
@@ -166,9 +250,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -179,8 +275,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -189,9 +290,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -202,8 +315,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -212,9 +330,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -225,8 +355,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -235,9 +370,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -248,8 +395,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -258,44 +410,87 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query SearchSites($q: String!) {\n  searchSites(input: {q: $q}) {\n    id\n    name\n    addressLine1\n    city\n  }\n}",
-                "variables": "{\"q\": \"Main\"}"
+                "query": "mutation SearchSites($q: String!, $orgId: UUID) {\n  searchSites(searchQuery: $q, pOrgId: $orgId, limitCount: 10) {\n    edges {\n      node {\n        id\n        name\n        addressLine1\n        city\n      }\n    }\n  }\n}",
+                "variables": "{\"q\": \"Main\", \"orgId\": \"{{orgId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Nearby Sites (PostGIS)",
+          "name": "Nearby Sites (PostGIS) (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "portfolio",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "portfolio",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "query Nearby($lat: Float!, $lng: Float!) {\n  nearbySites(input: {pLat: $lat, pLng: $lng, pRadiusMeters: 5000}) {\n    id\n    name\n    distanceMeters\n  }\n}",
-                "variables": "{\"lat\": 30.2672, \"lng\": -97.7431}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_lat\": 30.2672, \"p_lng\": -97.7431, \"radius_meters\": 5000, \"limit_count\": 20}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/nearby_sites",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "nearby_sites"
+              ]
             }
           }
         },
@@ -304,44 +499,87 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CreateOrg($name: String!, $slug: String!) {\n  createOrganization(input: {pName: $name, pSlug: $slug}) {\n    id\n    name\n    slug\n  }\n}",
+                "query": "mutation CreateOrg($name: String!, $slug: String!) {\n  createOrganization(pName: $name, pSlug: $slug) {\n    id\n    name\n    slug\n  }\n}",
                 "variables": "{\"name\": \"My Property Co\", \"slug\": \"my-property-co\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Create Site Full",
+          "name": "Create Site Full (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "portfolio",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "portfolio",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "mutation CreateSiteFull($orgId: UUID!, $name: String!, $slug: String!, $addr: String!, $city: String!, $state: String!) {\n  createSiteFull(input: {pOrgId: $orgId, pName: $name, pSlug: $slug, pAddressLine1: $addr, pCity: $city, pState: $state, pType: office, pFloorsCount: 5}) {\n    id\n    name\n    slug\n  }\n}",
-                "variables": "{\"orgId\": \"{{orgId}}\", \"name\": \"200 Congress Tower\", \"slug\": \"200-congress-tower\", \"addr\": \"200 Congress Ave\", \"city\": \"Austin\", \"state\": \"TX\"}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_org_id\": \"{{orgId}}\", \"p_portfolio_id\": \"{{portfolioId}}\", \"p_name\": \"200 Congress Tower\", \"p_slug\": \"200-congress-tower\", \"p_address_line1\": \"200 Congress Ave\", \"p_city\": \"Austin\", \"p_state\": \"TX\", \"p_type\": \"office\", \"p_floors_count\": 5}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/create_site_full",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "create_site_full"
+              ]
             }
           }
         }
@@ -355,9 +593,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -368,8 +618,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -378,9 +633,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -391,31 +658,62 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Create Work Order",
+          "name": "Create Work Order (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "ops",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "ops",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "mutation CreateWO($siteId: UUID!, $title: String!) {\n  createWorkOrder(input: {pSiteId: $siteId, pTitle: $title, pDescription: \"Fix HVAC\", pPriority: high}) {\n    id\n    title\n    status\n    slaDueAt\n  }\n}",
-                "variables": "{\"siteId\": \"{{siteId}}\", \"title\": \"Fix lobby lights flickering\"}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_site_id\": \"{{siteId}}\", \"p_title\": \"Fix lobby lights flickering\", \"p_description\": \"Fix HVAC\", \"p_priority\": \"high\"}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/create_work_order",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "create_work_order"
+              ]
             }
           }
         },
@@ -424,21 +722,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CompleteWO($id: UUID!) {\n  completeWorkOrder(input: {pWorkOrderId: $id}) {\n    id\n    status\n    completedAt\n  }\n}",
+                "query": "mutation CompleteWO($id: UUID!) {\n  completeWorkOrder(pWorkOrderId: $id) {\n    id\n    status\n    completedAt\n  }\n}",
                 "variables": "{\"id\": \"{{workOrderId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -447,9 +762,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -460,8 +787,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -470,21 +802,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CreateInsp($siteId: UUID!, $checklistId: UUID!, $assetId: UUID!) {\n  createInspectionFromChecklist(input: {pSiteId: $siteId, pChecklistId: $checklistId, pAssetId: $assetId, pTitle: \"Monthly HVAC\"}) {\n    id\n    title\n    status\n  }\n}",
+                "query": "mutation CreateInsp($siteId: UUID!, $checklistId: UUID!, $assetId: UUID!) {\n  createInspectionFromChecklist(pSiteId: $siteId, pChecklistId: $checklistId, pAssetId: $assetId, pTitle: \"Monthly HVAC\") {\n    id\n    title\n    status\n  }\n}",
                 "variables": "{\"siteId\": \"{{siteId}}\", \"checklistId\": \"{{checklistId}}\", \"assetId\": \"{{assetId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -493,21 +842,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CompleteInsp($id: UUID!) {\n  completeInspection(input: {pInspectionId: $id}) {\n    id\n    status\n    score\n  }\n}",
+                "query": "mutation CompleteInsp($id: UUID!) {\n  completeInspection(pInspectionId: $id) {\n    id\n    status\n    score\n  }\n}",
                 "variables": "{\"id\": \"{{inspectionId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -516,21 +882,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query LowStock($siteId: UUID!) {\n  inventoryStockCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        quantity\n        inventoryItems {\n          name\n          sku\n          minStockLevel\n        }\n      }\n    }\n  }\n}",
+                "query": "query LowStock($siteId: UUID!) {\n  inventoryStockCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        quantity\n        inventoryItem {\n          name\n          sku\n          minStockLevel\n        }\n      }\n    }\n  }\n}",
                 "variables": "{\"siteId\": \"{{siteId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         }
@@ -544,9 +927,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -557,8 +952,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -567,9 +967,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -580,8 +992,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -590,21 +1007,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query Check($spaceId: UUID!, $start: Datetime!, $end: Datetime!) {\n  checkReservationConflict(pSpaceId: $spaceId, pStart: $start, pEnd: $end)\n}",
+                "query": "mutation Check($spaceId: UUID!, $start: Datetime!, $end: Datetime!) {\n  checkReservationConflict(pSpaceId: $spaceId, pStart: $start, pEnd: $end)\n}",
                 "variables": "{\"spaceId\": \"{{spaceId}}\", \"start\": \"2024-07-20T09:00:00Z\", \"end\": \"2024-07-20T10:00:00Z\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -613,21 +1047,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation Book($siteId: UUID!, $spaceId: UUID!, $start: Datetime!, $end: Datetime!) {\n  createReservation(input: {pSiteId: $siteId, pSpaceId: $spaceId, pStart: $start, pEnd: $end, pTitle: \"Team Meeting\", pAttendees: 8}) {\n    id\n    title\n    startTime\n    endTime\n    status\n  }\n}",
+                "query": "mutation Book($siteId: UUID!, $spaceId: UUID!, $start: Datetime!, $end: Datetime!) {\n  createReservation(pSiteId: $siteId, pSpaceId: $spaceId, pStart: $start, pEnd: $end, pTitle: \"Team Meeting\", pAttendees: 8) {\n    id\n    title\n    startTime\n    endTime\n    status\n  }\n}",
                 "variables": "{\"siteId\": \"{{siteId}}\", \"spaceId\": \"{{spaceId}}\", \"start\": \"2024-07-20T09:00:00Z\", \"end\": \"2024-07-20T10:00:00Z\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -636,9 +1087,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -649,8 +1112,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         }
@@ -664,9 +1132,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -677,8 +1157,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -687,67 +1172,136 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation Register($siteId: UUID!, $name: String!, $email: String!) {\n  registerVisitor(input: {pSiteId: $siteId, pName: $name, pEmail: $email, pPurpose: \"Meeting\"}) {\n    id\n    qrCode\n    status\n  }\n}",
+                "query": "mutation Register($siteId: UUID!, $name: String!, $email: String!) {\n  registerVisitor(pSiteId: $siteId, pName: $name, pEmail: $email, pPurpose: \"Meeting\") {\n    id\n    qrCode\n    status\n  }\n}",
                 "variables": "{\"siteId\": \"{{siteId}}\", \"name\": \"John Doe\", \"email\": \"john@client.com\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Generate Pass",
+          "name": "Generate Pass (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "visitor",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "visitor",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "mutation GenPass($visitId: UUID!) {\n  generatePassForVisit(input: {pVisitId: $visitId}) {\n    id\n    qrToken\n    validFrom\n    validUntil\n    status\n  }\n}",
-                "variables": "{\"visitId\": \"{{visitId}}\"}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_visit_id\": \"{{visitId}}\"}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/generate_pass_for_visit",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "generate_pass_for_visit"
+              ]
             }
           }
         },
         {
-          "name": "Validate Pass",
+          "name": "Validate Pass (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "visitor",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "visitor",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "query Validate($token: String!) {\n  validatePass(pToken: $token) {\n    visitId\n    visitorName\n    status\n    isBlacklisted\n    hostName\n  }\n}",
-                "variables": "{\"token\": \"{{qrToken}}\"}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_token\": \"{{qrToken}}\"}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/validate_pass",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "validate_pass"
+              ]
             }
           }
         },
@@ -756,44 +1310,87 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CheckIn($token: String!) {\n  checkInVisitor(input: {pToken: $token}) {\n    id\n    status\n    checkedInAt\n  }\n}",
+                "query": "mutation CheckIn($token: String!) {\n  checkInVisitor(pToken: $token) {\n    id\n    status\n    checkedInAt\n  }\n}",
                 "variables": "{\"token\": \"{{qrToken}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Daily Visitor Stats",
+          "name": "Daily Visitor Stats (REST - not exposed via GraphQL)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "visitor",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "visitor",
+                "type": "text"
+              }
             ],
             "body": {
-              "mode": "graphql",
-              "graphql": {
-                "query": "query Stats($siteId: UUID!) {\n  getDailyVisitorStats(pSiteId: $siteId)\n}",
-                "variables": "{\"siteId\": \"{{siteId}}\"}"
-              }
+              "mode": "raw",
+              "raw": "{\"p_site_id\": \"{{siteId}}\"}"
             },
             "url": {
-              "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/get_daily_visitor_stats",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "get_daily_visitor_stats"
+              ]
             }
           }
         }
@@ -807,9 +1404,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -820,8 +1429,13 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -830,21 +1444,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation Eval($vendorId: UUID!, $siteId: UUID!) {\n  evaluateVendorCompliance(input: {pVendorId: $vendorId, pSiteId: $siteId}) {\n    vendorId\n    siteId\n    status\n    issues\n    lastChecked\n  }\n}",
+                "query": "mutation Eval($vendorId: UUID!, $siteId: UUID!) {\n  evaluateVendorCompliance(pVendorId: $vendorId, pSiteId: $siteId) {\n    vendorId\n    siteId\n    status\n    issues\n    lastChecked\n  }\n}",
                 "variables": "{\"vendorId\": \"{{vendorId}}\", \"siteId\": \"{{siteId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         }
@@ -858,21 +1489,38 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query SiteKPIs($siteId: UUID!) {\n  getSiteKpis(pSiteId: $siteId)\n}",
+                "query": "mutation SiteKPIs($siteId: UUID!) {\n  getSiteKPIs(pSiteId: $siteId)\n}",
                 "variables": "{\"siteId\": \"{{siteId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
@@ -881,9 +1529,21 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
@@ -894,31 +1554,1640 @@
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         },
         {
-          "name": "Building Benchmark",
+          "name": "Building Benchmark (REST - view has no primary key, not exposed via GraphQL)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "metrics",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{supabaseUrl}}/rest/v1/v_building_benchmark?portfolio_id=eq.{{portfolioId}}&order=date.desc",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "v_building_benchmark"
+              ],
+              "query": [
+                {
+                  "key": "portfolio_id",
+                  "value": "eq.{{portfolioId}}"
+                },
+                {
+                  "key": "order",
+                  "value": "date.desc"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Tenant Occupancy & Leases",
+      "item": [
+        {
+          "name": "Occupancies by Site",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "apikey", "value": "{{anonKey}}", "type": "text" },
-              { "key": "Authorization", "value": "Bearer {{userJwt}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
             ],
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query Bench($portfolioId: UUID!) {\n  vBuildingBenchmarkCollection(filter: {portfolioId: {eq: $portfolioId}}, orderBy: {date: DescNullsLast}) {\n    edges {\n      node {\n        siteId\n        siteName\n        city\n        occupancyRate\n        complianceRate\n        workOrdersOpen\n        portfolioAvgOccupancy\n        occupancyRank\n      }\n    }\n  }\n}",
-                "variables": "{\"portfolioId\": \"{{portfolioId}}\"}"
+                "query": "query($siteId: UUID!) {\n  occupanciesCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        status\n        isPrimary\n        sharedOccupancy\n        startDate\n        endDate\n        moveInDate\n        moveOutDate\n        occupiedSquareFeet\n        tenant {\n          companyName\n        }\n        space {\n          name\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
               }
             },
             "url": {
               "raw": "{{supabaseUrl}}/graphql/v1",
-              "host": ["{{supabaseUrl}}"],
-              "path": ["graphql", "v1"]
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Leases by Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  leasesCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        status\n        leaseType\n        monthlyRent\n        securityDeposit\n        startDate\n        endDate\n        renewalOfLeaseId\n        tenant {\n          companyName\n        }\n        space {\n          name\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lease Spaces",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($leaseId: UUID!) {\n  leaseSpacesCollection(filter: {leaseId: {eq: $leaseId}}) {\n    edges {\n      node {\n        id\n        squareFeet\n        effectiveStartDate\n        effectiveEndDate\n        space {\n          name\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"leaseId\": \"{{leaseId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tenant Contacts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($tenantId: UUID!) {\n  tenantContactsCollection(filter: {tenantId: {eq: $tenantId}}) {\n    edges {\n      node {\n        id\n        contactType\n        isPrimary\n        isEmergency\n        portalStatus\n        receivesAnnouncements\n        receivesBillingNotices\n        profile {\n          fullName\n          email\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"tenantId\": \"{{tenantId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check Occupancy Conflict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($spaceId: UUID!, $start: Date!, $excludeId: UUID) {\n  checkOccupancyConflict(pSpaceId: $spaceId, pStart: $start, pExcludeOccupancyId: $excludeId)\n}",
+                "variables": "{\"spaceId\": \"{{spaceId}}\", \"start\": \"2026-09-01\", \"excludeId\": null}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Tenants",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($q: String!, $siteId: UUID) {\n  searchTenants(pQuery: $q, pSiteId: $siteId, first: 10) {\n    edges {\n      node {\n        id\n        companyName\n        tenantType\n        status\n        industry\n      }\n    }\n  }\n}",
+                "variables": "{\"q\": \"Horizon\", \"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Tenant Documents",
+      "item": [
+        {
+          "name": "Tenant Documents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($tenantId: UUID!) {\n  tenantDocumentsCollection(filter: {tenantId: {eq: $tenantId}}) {\n    edges {\n      node {\n        id\n        name\n        category\n        visibility\n        status\n        effectiveDate\n        expirationDate\n        currentVersion {\n          versionNumber\n          fileName\n          fileType\n          fileSizeBytes\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"tenantId\": \"{{tenantId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Document Versions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($documentId: UUID!) {\n  tenantDocumentVersionsCollection(filter: {documentId: {eq: $documentId}}) {\n    edges {\n      node {\n        id\n        versionNumber\n        fileName\n        fileType\n        isCurrent\n        status\n        uploadedAt\n        changeNotes\n      }\n    }\n  }\n}",
+                "variables": "{\"documentId\": \"{{documentId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Tenant Document (REST - 12-arg function not exposed via GraphQL)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "tenant",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "tenant",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"p_tenant_id\": \"{{tenantId}}\", \"p_category\": \"lease\", \"p_visibility\": \"tenant_admin\", \"p_file_url\": \"https://example.com/lease.pdf\", \"p_file_name\": \"lease-agreement.pdf\"}"
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/upload_tenant_document",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "upload_tenant_document"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Settings",
+      "item": [
+        {
+          "name": "Setting Definitions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  settingDefinitionsCollection {\n    edges {\n      node {\n        key\n        label\n        description\n        type\n        defaultValue\n        category\n      }\n    }\n  }\n}",
+                "variables": ""
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Organization Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($orgId: UUID!) {\n  organizationSettingsCollection(filter: {orgId: {eq: $orgId}}) {\n    edges {\n      node {\n        settingKey\n        value\n        updatedAt\n      }\n    }\n  }\n}",
+                "variables": "{\"orgId\": \"{{orgId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Site Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  siteSettingsCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        settingKey\n        value\n        updatedAt\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Resolved Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($siteId: UUID!, $category: String) {\n  getResolvedSettings(pSiteId: $siteId, pCategory: $category)\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\", \"category\": null}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Communications (Campaigns)",
+      "item": [
+        {
+          "name": "Campaigns by Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  communicationCampaignsCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        name\n        subject\n        status\n        scheduledAt\n        sentAt\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Campaign Recipients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($campaignId: UUID!) {\n  campaignRecipientsCollection(filter: {campaignId: {eq: $campaignId}}) {\n    edges {\n      node {\n        id\n        recipientEmail\n        recipientName\n        status\n      }\n    }\n  }\n}",
+                "variables": "{\"campaignId\": \"{{campaignId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Campaign Deliveries",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($campaignId: UUID!) {\n  campaignDeliveriesCollection(filter: {campaignId: {eq: $campaignId}}) {\n    edges {\n      node {\n        id\n        recipientEmail\n        status\n        deliveredAt\n        openedAt\n        bouncedAt\n      }\n    }\n  }\n}",
+                "variables": "{\"campaignId\": \"{{campaignId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($campaignId: UUID!) {\n  sendCampaign(pCampaignId: $campaignId)\n}",
+                "variables": "{\"campaignId\": \"{{campaignId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Billing & Stripe",
+      "item": [
+        {
+          "name": "Billing Requests by Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  billingRequestsCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        title\n        status\n        totalAmountCents\n        dueDate\n        sentAt\n        paidAt\n        stripeCheckoutUrl\n        tenant {\n          companyName\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Billing Line Items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($billingRequestId: UUID!) {\n  billingLineItemsCollection(filter: {billingRequestId: {eq: $billingRequestId}}) {\n    edges {\n      node {\n        id\n        label\n        category\n        amountCents\n      }\n    }\n  }\n}",
+                "variables": "{\"billingRequestId\": \"{{billingRequestId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Billing Schedules",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  billingSchedulesCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        title\n        cadence\n        status\n        startDate\n        nextDueDate\n        tenant {\n          companyName\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Stripe Connections",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($orgId: UUID!) {\n  stripeConnectionsCollection(filter: {orgId: {eq: $orgId}}) {\n    edges {\n      node {\n        id\n        stripeAccountId\n        mode\n        webhookStatus\n        webhookHealth\n        connectedAt\n        lastSyncedAt\n      }\n    }\n  }\n}",
+                "variables": "{\"orgId\": \"{{orgId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Billing Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($billingRequestId: UUID!) {\n  sendBillingRequest(pBillingRequestId: $billingRequestId) {\n    id\n    status\n    sentAt\n    stripeCheckoutUrl\n  }\n}",
+                "variables": "{\"billingRequestId\": \"{{billingRequestId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate Recurring Billing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($runDate: Date) {\n  generateRecurringBilling(pRunDate: $runDate)\n}",
+                "variables": "{\"runDate\": null}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Checkout Sessions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($billingRequestId: UUID!) {\n  checkoutSessionsCollection(filter: {billingRequestId: {eq: $billingRequestId}}) {\n    edges {\n      node {\n        id\n        stripeSessionId\n        status\n        url\n        expiresAt\n      }\n    }\n  }\n}",
+                "variables": "{\"billingRequestId\": \"{{billingRequestId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Apply Stripe Webhook Event (REST - service_role only, simulates Stripe webhook)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{serviceRoleKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{serviceRoleKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept-Profile",
+                "value": "platform",
+                "type": "text"
+              },
+              {
+                "key": "Content-Profile",
+                "value": "platform",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"p_event_type\": \"checkout.session.completed\", \"p_payload\": {\"id\": \"evt_test_1\", \"data\": {\"object\": {\"id\": \"cs_test_1\"}}}}"
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/rest/v1/rpc/apply_stripe_webhook_event",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "rest",
+                "v1",
+                "rpc",
+                "apply_stripe_webhook_event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Documentation (Knowledge Base)",
+      "item": [
+        {
+          "name": "KB Articles by Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  kbArticlesCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        title\n        slug\n        category\n        status\n        visibility\n        summary\n        tags\n        reviewDate\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "KB Article Versions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($articleId: UUID!) {\n  kbArticleVersionsCollection(filter: {articleId: {eq: $articleId}}) {\n    edges {\n      node {\n        id\n        label\n        note\n        createdAt\n        author {\n          fullName\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"articleId\": \"{{articleId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "KB Article Links",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($articleId: UUID!) {\n  kbArticleLinksCollection(filter: {articleId: {eq: $articleId}}) {\n    edges {\n      node {\n        id\n        entityType\n        entityId\n      }\n    }\n  }\n}",
+                "variables": "{\"articleId\": \"{{articleId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Can View KB Article",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($articleId: UUID!) {\n  canViewKbArticle(pArticleId: $articleId)\n}",
+                "variables": "{\"articleId\": \"{{articleId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Site Content",
+      "item": [
+        {
+          "name": "Site Content (Narrative)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  siteContentCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        overview\n        frontDesk\n        emergencyGuidance\n        parking\n        loadingDock\n        deliveries\n        securityProcedures\n        access\n        policies\n        updatedAt\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Site Contacts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  siteContactsCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        label\n        personName\n        role\n        phone\n        email\n        availability\n        isEmergency\n        sortOrder\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Site FAQs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  siteFaqsCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        question\n        answer\n        sortOrder\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Tenant Bulk Import",
+      "item": [
+        {
+          "name": "Import Batches by Site",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($siteId: UUID!) {\n  tenantImportBatchesCollection(filter: {siteId: {eq: $siteId}}) {\n    edges {\n      node {\n        id\n        fileName\n        status\n        totalRows\n        validRows\n        invalidRows\n        duplicateRows\n        createdAt\n      }\n    }\n  }\n}",
+                "variables": "{\"siteId\": \"{{siteId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Import Rows for Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($batchId: UUID!) {\n  tenantImportRowsCollection(filter: {batchId: {eq: $batchId}}) {\n    edges {\n      node {\n        id\n        rowNumber\n        validationStatus\n        errors\n        rawData\n      }\n    }\n  }\n}",
+                "variables": "{\"batchId\": \"{{batchId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validate Tenant Import Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($batchId: UUID!) {\n  validateTenantImportBatch(pBatchId: $batchId)\n}",
+                "variables": "{\"batchId\": \"{{batchId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Commit Tenant Import Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation($batchId: UUID!) {\n  commitTenantImportBatch(pBatchId: $batchId)\n}",
+                "variables": "{\"batchId\": \"{{batchId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Webhook Log & Activity Feed",
+      "item": [
+        {
+          "name": "Webhook Events",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($orgId: UUID!) {\n  webhookEventsCollection(filter: {orgId: {eq: $orgId}}, orderBy: {createdAt: DescNullsLast}) {\n    edges {\n      node {\n        id\n        source\n        eventType\n        status\n        createdAt\n        billingRequest {\n          title\n        }\n      }\n    }\n  }\n}",
+                "variables": "{\"orgId\": \"{{orgId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tenant Activity Log",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{anonKey}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query($tenantId: UUID!) {\n  tenantActivityLogCollection(filter: {tenantId: {eq: $tenantId}}, orderBy: {occurredAt: DescNullsLast}) {\n    edges {\n      node {\n        id\n        title\n        detail\n        type\n        occurredAt\n      }\n    }\n  }\n}",
+                "variables": "{\"tenantId\": \"{{tenantId}}\"}"
+              }
+            },
+            "url": {
+              "raw": "{{supabaseUrl}}/graphql/v1",
+              "host": [
+                "{{supabaseUrl}}"
+              ],
+              "path": [
+                "graphql",
+                "v1"
+              ]
             }
           }
         }

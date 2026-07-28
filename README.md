@@ -14,6 +14,8 @@
 
 ### 15 Migrations (~6,500 lines SQL) — Ready to Deploy
 
+> **Note:** the table below documents migrations `00000`–`00015` only. Migrations `00016`–`00030` (GraphQL/security fixes, then the tenant occupancy/lease model, tenant documents, settings, communication campaigns, billing + Stripe, space enum expansion, documentation/KB, site content, tenant bulk import, and webhook log + activity feed domains) exist and are applied by `supabase db reset` / `db push` like any other migration, but aren't summarized here yet — see the filenames in `supabase/migrations/` for now. Also note: `00006`, `00008`, `00011`, `00013`, `00015` (the "N Seed" rows below) are dead code on a fresh reset — see `docs/SEED_DATA.md` for why, and for what `supabase/seed.sql` seeds instead.
+
 | File | Phase | Purpose |
 |------|-------|---------|
 | `00000_extensions.sql` | 0 Core | Extensions: pg_graphql, postgis, pg_trgm, ltree, pg_cron, pg_net, uuid-ossp + 6 schemas: platform, portfolio, ops, tenant, visitor, vendor, metrics |
@@ -251,27 +253,9 @@ curl -X POST http://127.0.0.1:54321/auth/v1/signup \
 
 ### 5. Seed Demo Data
 
-Seed creates Demo org + portfolio + 2 sites + buildings/floors/spaces + assets + vendors etc. It auto-detects first auth user.
+Nothing to do here - `supabase/seed.sql` runs automatically after every `supabase db reset`, creating four login-ready accounts (`demo@cre.local` / `manager2@cre.local` / `tenant@cre.local` / `tenant2@cre.local`, password `password123` for all) plus a fully populated org: 2 sites, 6 tenants with leases/occupancies/documents, 10 work orders, vendors, visitors, billing, campaigns, KB articles, and more. See `docs/SEED_DATA.md` for the full breakdown.
 
-**Via Studio SQL Editor:**
-
-1. Open http://127.0.0.1:54323 → SQL Editor → New Query
-2. Copy entire content of `supabase/migrations/00006_seed_demo.sql` → Run
-3. Then run `00008_ops_phase1_seed.sql` → Run
-4. Then run `00011_phase2_seed.sql` → Run
-5. Then run `00013_phase3_seed.sql` → Run
-6. Then run `00015_phase4_seed.sql` → Run
-
-Or combined in one go:
-
-```bash
-# Via CLI (requires local db connection)
-supabase db execute --local --file supabase/migrations/00006_seed_demo.sql
-supabase db execute --local --file supabase/migrations/00008_ops_phase1_seed.sql
-supabase db execute --local --file supabase/migrations/00011_phase2_seed.sql
-supabase db execute --local --file supabase/migrations/00013_phase3_seed.sql
-supabase db execute --local --file supabase/migrations/00015_phase4_seed.sql
-```
+(The `00006`/`00008`/`00011`/`00013`/`00015` "Phase N Seed" migrations listed in the table above are dead code on a fresh reset - they check for a pre-existing `auth.users` row before doing anything, and none exists yet at the point migrations run. `docs/SEED_DATA.md` explains why in detail.)
 
 **Verify seed:**
 
@@ -535,19 +519,15 @@ supabase secrets list --project-ref YOUR_REF
 supabase functions logs compliance-daily-check --project-ref YOUR_REF
 ```
 
-### 4. Create User & Seed in Cloud
+### 4. Seed Demo Data in Cloud (optional)
 
-Option A via Dashboard SQL Editor:
+`supabase/seed.sql` only auto-runs on a *local* `supabase db reset` - `supabase db push` does not run it against a cloud project. If you want the same demo data there, run it manually:
 
-1. Auth → Users → Add User → demo@cre.local / password123 → Auto Confirm
-2. SQL Editor → run content of `supabase/migrations/00006_seed_demo.sql` → Run
-3. Run 00008, 00011, 00013, 00015 seed files in order
+Dashboard SQL Editor:
 
-Option B via CLI:
+1. SQL Editor → New Query → paste the entire content of `supabase/seed.sql` → Run
 
-```bash
-# Use service_role to create profile if needed, or use API sign up endpoint with anon key against cloud URL
-```
+The file is plain SQL (it inserts directly into `auth.users`/`auth.identities` rather than depending on a signup HTTP call), so this works as-is against a cloud project's SQL Editor. See `docs/SEED_DATA.md` for what it creates and the four login accounts it seeds.
 
 ### 5. Verify Cloud
 
@@ -637,6 +617,8 @@ query MyPortfolio {
 
 ## Testing Locally (No Frontend)
 
+`supabase db reset` already seeds a full org (demo@cre.local / password123, see `docs/SEED_DATA.md`) - the steps below assume that data exists. To test against your own org instead of the seeded one:
+
 ```sql
 -- 1. Create user via Studio → Auth
 select auth.uid(); -- returns user id when logged via SQL Editor with JWT
@@ -644,10 +626,7 @@ select auth.uid(); -- returns user id when logged via SQL Editor with JWT
 -- 2. Create org
 select platform.create_organization('My Company', 'my-company');
 
--- 3. Run seeds already done, or:
--- \i supabase/migrations/00006_seed_demo.sql
-
--- 4. Check RLS
+-- 3. Check RLS
 select * from portfolio.sites; -- only allowed sites via memberships
 
 -- 5. Create WO

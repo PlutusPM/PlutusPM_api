@@ -115,104 +115,56 @@ supabase migration list
 # ...
 # 00015_phase4_seed
 
-# If you want to force reset (drops DB and reapplies all 15 + rebuilds GraphQL):
+# If you want to force reset (drops DB, reapplies every migration, rebuilds GraphQL,
+# and auto-runs supabase/seed.sql):
 supabase db reset
-# Note: db reset does NOT automatically run seed files that require a user (see next step). It reapplies schema.
 
-# Quick check via SQL
+# Quick check via SQL - should be non-zero once db reset finishes, seed.sql already ran
 supabase db execute --local "select count(*) from portfolio.sites;"
-# 0 before seed
 ```
 
 ---
 
-## 4. Create First Auth User
+## 4. Auth users + demo data are already seeded
 
-Seed requires at least one auth user as org owner (demo user). Create via Studio or API.
+`supabase db reset` automatically runs `supabase/seed.sql` after migrations, which creates four ready-to-log-in accounts (password `password123` for all) plus a fully populated demo org - two sites, tenants, work orders, vendors, visitors, billing, campaigns, KB articles, everything. There is no manual seeding step.
 
-### Option A - Studio (Easiest - Recommended)
+| Email | Role |
+|---|---|
+| `demo@cre.local` | Org owner |
+| `manager2@cre.local` | Site manager |
+| `tenant@cre.local` | Tenant portal admin |
+| `tenant2@cre.local` | Tenant portal contact |
 
-1. Open http://127.0.0.1:54323 (Studio URL from `supabase status`)
-2. Left sidebar → Authentication → Users → Add User → Create new user
-   - Email: `demo@cre.local`
-   - Password: `password123`
-   - Auto Confirm User: ✅ check
-   - Create
-3. Click the created user row → Copy User UUID (top)
+See `docs/SEED_DATA.md` for the full breakdown of what's seeded, why the old `00006`/`00008`/`00011`/`00013`/`00015` "seed" migrations are dead code on a fresh reset, and how to extend the seed data.
 
-### Option B - API/cURL
+To get a JWT for Postman/GraphQL testing, sign in with one of the accounts above:
 
 ```bash
 ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # from supabase status
 
-curl -X POST http://127.0.0.1:54321/auth/v1/signup \
+curl -X POST http://127.0.0.1:54321/auth/v1/token?grant_type=password \
   -H "apikey: $ANON_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "demo@cre.local",
-    "password": "password123",
-    "data": { "full_name": "Demo Admin" }
-  }'
+  -d '{"email": "demo@cre.local", "password": "password123"}'
 
 # Returns: access_token (JWT), user object with id
-# Save access_token as USER_JWT
 ```
 
-### Option C - Postman
+Or via Postman: import `postman/PlutusPM.postman_collection.json` + `postman/PlutusPM.postman_environment.json`, set `supabaseUrl`/`anonKey` in the environment, and run `0. Auth > Sign In - Get JWT` (auto-saves `userJwt`/`userId`).
 
-1. Import `postman/PlutusPM.postman_collection.json` + `postman/PlutusPM.postman_environment.json` into Postman
-2. Edit environment "PlutusPM Local & Cloud":
-   - `supabaseUrl`: `http://127.0.0.1:54321`
-   - `anonKey`: from `supabase status` anon key
-3. Run folder `1. Auth > Sign Up` with body demo@cre.local / password123
-   - Test script auto-saves `userJwt` + `userId` to environment
-4. Also run `Sign In` if needed - also auto-saves JWT
-
----
-
-## 5. Seed Demo Data (5 Files)
-
-Seed creates Demo org "Demo CRE Management Co" slug demo-cre, owner = first auth user, membership owner, portfolio Downtown Portfolio, 2 sites (100 Main Tower office 250k 20 floors lat 30.2672 lng -97.7431 Austin TX + Westfield Mall retail), buildings 5 floors each, spaces Lobby/Cafe/Security/Suites/Conference Room/Parking, asset_categories 6, 3 assets Chiller/Elevator/Fire Panel, 3 PM templates, vendors 3 + contract + COI expiring 20 days, tenant Acme Tech, plus Phase 1-4 seeds (checklists, inventory low stock, announcements, events, amenities, reservations, visitors, passes, devices, compliance rules, etc.)
-
-**Via Studio SQL Editor (easiest):**
-
-1. Open http://127.0.0.1:54323 → SQL Editor → New Query
-2. Copy-paste entire content of `supabase/migrations/00006_seed_demo.sql` → Run (should say Success)
-3. Then run `00008_ops_phase1_seed.sql` → Run
-4. Then run `00011_phase2_seed.sql` → Run
-5. Then run `00013_phase3_seed.sql` → Run
-6. Then run `00015_phase4_seed.sql` → Run
-
-**Via CLI:**
-
-```bash
-supabase db execute --local --file supabase/migrations/00006_seed_demo.sql
-supabase db execute --local --file supabase/migrations/00008_ops_phase1_seed.sql
-supabase db execute --local --file supabase/migrations/00011_phase2_seed.sql
-supabase db execute --local --file supabase/migrations/00013_phase3_seed.sql
-supabase db execute --local --file supabase/migrations/00015_phase4_seed.sql
-```
-
-**Verify seed:**
+**Verify seed data landed:**
 
 ```sql
--- In Studio SQL Editor → New Query → Run:
 select 'orgs' as tbl, count(*) from platform.organizations
-union all select 'portfolios', count(*) from portfolio.portfolios
 union all select 'sites', count(*) from portfolio.sites
-union all select 'buildings', count(*) from portfolio.buildings
-union all select 'spaces', count(*) from portfolio.spaces
-union all select 'assets', count(*) from ops.assets
+union all select 'tenants', count(*) from tenant.tenants
 union all select 'work_orders', count(*) from ops.work_orders
-union all select 'checklists', count(*) from ops.checklists
-union all select 'inventory_items', count(*) from ops.inventory_items
-union all select 'announcements', count(*) from tenant.announcements
-union all select 'visitors', count(*) from visitor.visitors
 union all select 'vendors', count(*) from vendor.vendors
-union all select 'kpi_definitions', count(*) from metrics.kpi_definitions;
-
--- Expected roughly:
--- orgs 1, portfolios 1, sites 2, buildings 2, spaces ~15, assets 3, checklists 2, inventory_items 5, announcements 3, visitors 3, vendors 3, kpi_definitions 13 etc
+union all select 'visitors', count(*) from visitor.visitors
+union all select 'billing_requests', count(*) from tenant.billing_requests
+union all select 'kb_articles', count(*) from platform.kb_articles;
+-- orgs 1, sites 2, tenants 6, work_orders 10, vendors 4, visitors 4, billing_requests 4, kb_articles 5
 ```
 
 ---
@@ -235,7 +187,7 @@ curl -X POST http://127.0.0.1:54321/graphql/v1 \
     "query": "query { portfolioSitesCollection { edges { node { id name city type status } } } }"
   }'
 
-# Should return 2 demo sites because RLS filters via memberships (you belong to demo-cre org)
+# Should return 2 sites because RLS filters via memberships (you belong to the meridian-commercial org)
 ```
 
 **Via GraphiQL / Altair:**
@@ -503,9 +455,9 @@ supabase stop
 # Stop and delete data (fresh next start, need to re-seed)
 supabase stop --no-backup
 
-# Reset DB only (drops and reapplies migrations, keeps containers running, fast)
+# Reset DB only (drops and reapplies migrations, keeps containers running, fast).
+# supabase/seed.sql runs automatically at the end - no manual re-seeding needed.
 supabase db reset
-# After reset, re-run seed files 00006, 00008, 00011, 00013, 00015 via SQL Editor or db execute
 
 # Logs
 supabase logs db        # Postgres logs

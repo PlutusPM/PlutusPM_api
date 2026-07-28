@@ -138,5 +138,25 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/graphql-gateway/index.ts"
 
+[functions.send-campaign]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/send-campaign/index.ts"
+
+[functions.campaign-delivery-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/campaign-delivery-webhook/index.ts"
+
+[functions.create-checkout-session]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/create-checkout-session/index.ts"
+
+[functions.stripe-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/stripe-webhook/index.ts"
+
 [analytics]
 enabled = false
