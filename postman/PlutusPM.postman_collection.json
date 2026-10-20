@@ -269,7 +269,7 @@
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "query MyOrgs {\n  organizationsCollection {\n    edges {\n      node {\n        id\n        name\n        slug\n        billingTier\n      }\n    }\n  }\n}",
+                "query": "query MyOrgs {\n  platformTenantCollection {\n    edges {\n      node {\n        id\n        name\n        slug\n        billingTier\n      }\n    }\n  }\n}",
                 "variables": ""
               }
             },
@@ -518,7 +518,7 @@
             "body": {
               "mode": "graphql",
               "graphql": {
-                "query": "mutation CreateOrg($name: String!, $slug: String!) {\n  createOrganization(pName: $name, pSlug: $slug) {\n    id\n    name\n    slug\n  }\n}",
+                "query": "mutation CreateOrg($name: String!, $slug: String!) {\n  createTenant(pName: $name, pSlug: $slug) {\n    id\n    name\n    slug\n  }\n}",
                 "variables": "{\"name\": \"My Property Co\", \"slug\": \"my-property-co\"}"
               }
             },

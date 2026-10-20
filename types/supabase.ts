@@ -12,7 +12,7 @@ import type { Database } from './database'
 export type Tables<T extends keyof Database[keyof Database]['Tables']> = Database[keyof Database]['Tables'][T] extends { Row: infer R } ? R : never
 
 // Specific table helpers
-export type Organization = Database['platform']['Tables']['organizations']['Row']
+export type PlatformTenant = Database['platform']['Tables']['tenants']['Row']
 export type Profile = Database['platform']['Tables']['profiles']['Row']
 export type Membership = Database['platform']['Tables']['memberships']['Row']
 export type Site = Database['portfolio']['Tables']['sites']['Row']
@@ -59,7 +59,7 @@ export type UserWithMemberships = {
   id: string
   email: string
   profile: Profile | null
-  memberships: (Membership & { organization: Organization })[]
+  memberships: (Membership & { tenant: PlatformTenant })[]
   currentOrgId?: string
   currentSiteIds?: string[]
 }

@@ -8,6 +8,9 @@
 [api]
 enabled = true
 port = 54321
+# Host used in auth email links. LAN IP so magic links open on a phone running
+# the mobile app; update it if your machine's IP changes.
+external_url = "http://192.168.68.58:54321"
 schemas = ["public", "platform", "portfolio", "ops", "tenant", "visitor", "vendor", "metrics", "graphql", "graphql_public", "storage"]
 extra_search_path = ["public", "extensions", "platform", "portfolio", "ops", "tenant", "visitor", "vendor", "metrics"]
 max_rows = 1000
@@ -48,7 +51,7 @@ file_size_limit = "100MiB"
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["https://127.0.0.1:3000", "http://localhost:3000", "http://localhost:3001"]
+additional_redirect_urls = ["https://127.0.0.1:3000", "http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000/**", "http://localhost:3000/**", "http://localhost:3001/**", "http://plutuspm.test:3000/**", "http://*.plutuspm.test:3000/**", "exp://**", "plutuspm://**"]
 jwt_expiry = 3600
 enable_signup = true
 enable_manual_linking = true

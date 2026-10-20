@@ -8,7 +8,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   platform: {
     Tables: {
-      organizations: {
+      tenants: {
         Row: {
           id: string
           name: string
@@ -146,6 +146,7 @@ export type Database = {
           id: string
           org_id: string
           name: string
+          slug: string
           description: string | null
           color: string
           manager_id: string | null
@@ -340,6 +341,7 @@ export type Database = {
           priority: 'low' | 'medium' | 'high' | 'urgent'
           status: 'open' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled' | 'overdue'
           assigned_to: string | null
+          vendor_id: string | null
           created_by: string | null
           due_date: string | null
           sla_due_at: string | null
