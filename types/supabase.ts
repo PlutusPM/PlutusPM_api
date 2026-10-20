@@ -30,6 +30,7 @@ export type Reservation = Database['tenant']['Tables']['reservations']['Row']
 export type Visitor = Database['visitor']['Tables']['visitors']['Row']
 export type Visit = Database['visitor']['Tables']['visits']['Row']
 export type Vendor = Database['vendor']['Tables']['vendors']['Row']
+export type VendorUser = Database['vendor']['Tables']['vendor_users']['Row']
 export type COI = Database['vendor']['Tables']['cois']['Row']
 export type ComplianceStatus = Database['vendor']['Tables']['compliance_status']['Row']
 export type DailySiteStats = Database['metrics']['Tables']['daily_site_stats']['Row']
@@ -41,6 +42,56 @@ export type WorkOrderStatus = Database['ops']['Tables']['work_orders']['Row']['s
 export type WorkOrderPriority = Database['ops']['Tables']['work_orders']['Row']['priority']
 export type VisitStatus = Database['visitor']['Tables']['visits']['Row']['status']
 export type VendorType = Database['vendor']['Tables']['vendors']['Row']['type']
+export type VendorAssignmentStatus = Database['ops']['Tables']['work_orders']['Row']['vendor_assignment_status']
+
+export type VendorPortalContext = {
+  user_id: string
+  org_id: string
+  vendor_id: string
+  vendor_name: string
+  vendor_type: string
+  user_email: string
+  user_name: string | null
+}
+
+export type VendorComment = {
+  id: string
+  comment: string
+  author_name: string
+  created_at: string
+}
+
+export type VendorAttachment = {
+  id: string
+  file_name: string
+  mime_type: string | null
+  file_size: number | null
+  created_at: string
+}
+
+export type VendorWorkOrder = {
+  id: string
+  number: string
+  title: string
+  description: string | null
+  type: 'preventive' | 'corrective' | 'inspection' | 'service_request' | 'incident'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  internal_status: 'open' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled' | 'overdue'
+  vendor_assignment_status: VendorAssignmentStatus
+  vendor_id: string
+  property: { id: string; name: string; address: string | null }
+  location: { id: string; name: string; code: string | null } | null
+  due_date: string | null
+  sla_due_at: string | null
+  vendor_assigned_at: string | null
+  vendor_responded_at: string | null
+  vendor_decline_reason: string | null
+  vendor_completed_at: string | null
+  created_at: string
+  updated_at: string
+  comments: VendorComment[]
+  attachments: VendorAttachment[]
+}
 
 // GraphQL helpers
 export type GraphQLResponse<T> = {

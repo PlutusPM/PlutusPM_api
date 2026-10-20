@@ -57,7 +57,16 @@ enable_signup = true
 enable_manual_linking = true
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
+minimum_password_length = 10
 # Removed invalid keys: port, enable_confirmations (now under [auth.email])
+
+[auth.rate_limit]
+# GoTrue controls password sign-in throttling. Vendor and management password
+# logins use this same limit; no email-existence signal is added by the app.
+sign_in_sign_ups = 30
+token_refresh = 150
+email_sent = 30
+sms_sent = 30
 
 [auth.email]
 enable_signup = true
@@ -160,6 +169,21 @@ entrypoint = "./functions/create-checkout-session/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/stripe-webhook/index.ts"
+
+[functions.vendor-invite]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/vendor-invite/index.ts"
+
+[functions.vendor-work-order-attachment]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/vendor-work-order-attachment/index.ts"
+
+[functions.vendor-work-order-attachment-url]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/vendor-work-order-attachment-url/index.ts"
 
 [analytics]
 enabled = false

@@ -2,7 +2,7 @@
 
 create table if not exists tenant.move_in_task_progress (
   id uuid primary key default uuid_generate_v4(),
-  org_id uuid not null references platform.organizations(id) on delete cascade,
+  org_id uuid not null references platform.tenants(id) on delete cascade,
   site_id uuid not null references portfolio.sites(id) on delete cascade,
   tenant_id uuid not null references tenant.tenants(id) on delete cascade,
   occupancy_id uuid not null references tenant.occupancies(id) on delete cascade,

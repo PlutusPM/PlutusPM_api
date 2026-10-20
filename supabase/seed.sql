@@ -8,6 +8,7 @@
 --   manager2@cre.local   - site manager, scoped to One Commerce Plaza
 --   tenant@cre.local     - tenant admin contact for Horizon Financial Group
 --   tenant2@cre.local    - tenant contact for Northstar Legal
+--   vendor@cre.local     - Cool Air HVAC vendor portal user (/vendor-sign-in)
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -439,3 +440,39 @@ insert into metrics.daily_site_stats (org_id, site_id, date, work_orders_open, w
 insert into metrics.daily_site_stats (org_id, site_id, date, work_orders_open, work_orders_closed, work_orders_overdue, sla_breaches, visitor_count, service_requests_count, occupancy_rate, compliance_rate, labor_hours) values ('08f4a9f4-2d61-5c9a-b683-d1d1013f181b', '25b420e7-1544-5cfd-9f7f-dd81420b6693', '2026-07-23', 6, 3, 0, 0, 8, 3, 93, 92, 22) on conflict (site_id, date) do nothing;
 insert into metrics.daily_site_stats (org_id, site_id, date, work_orders_open, work_orders_closed, work_orders_overdue, sla_breaches, visitor_count, service_requests_count, occupancy_rate, compliance_rate, labor_hours) values ('08f4a9f4-2d61-5c9a-b683-d1d1013f181b', '25b420e7-1544-5cfd-9f7f-dd81420b6693', '2026-07-22', 4, 2, 1, 0, 9, 2, 94, 90, 24) on conflict (site_id, date) do nothing;
 insert into metrics.portfolio_daily_stats (org_id, portfolio_id, date, occupancy_rate, total_sites) values ('08f4a9f4-2d61-5c9a-b683-d1d1013f181b', 'b4e73dfa-a6b2-56cf-9705-083aa6ada841', '2026-07-28', 89.5, 2) on conflict (portfolio_id, date) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Vendor portal login (requires migration 00044_vendor_portal)
+--   vendor@cre.local - Cool Air HVAC Services technician, vendor portal only
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new, email_change, email_change_token_current, phone_change, phone_change_token, reauthentication_token)
+values ('00000000-0000-0000-0000-000000000000', 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', 'authenticated', 'authenticated', 'vendor@cre.local', crypt('password123', gen_salt('bf')), now(), '{"provider": "email", "providers": ["email"]}', '{"sub": "c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f", "email": "vendor@cre.local", "email_verified": true, "phone_verified": false}', now(), now(), '', '', '', '', '', '', '', '')
+on conflict (id) do nothing;
+
+insert into auth.identities (id, provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+select gen_random_uuid(), 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', '{"sub": "c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f", "email": "vendor@cre.local", "email_verified": true, "phone_verified": false}', 'email', now(), now(), now()
+where not exists (select 1 from auth.identities where user_id = 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f' and provider = 'email');
+
+insert into platform.profiles (id, email, full_name, phone) values
+('c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', 'vendor@cre.local', 'Sam Rivera', '(704) 555-0310')
+on conflict (id) do update set email = excluded.email, full_name = excluded.full_name;
+
+insert into platform.memberships (org_id, user_id, role, portfolio_ids, site_ids) values
+('08f4a9f4-2d61-5c9a-b683-d1d1013f181b', 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', 'vendor', null, null)
+on conflict do nothing;
+
+insert into vendor.vendor_users (id, org_id, vendor_id, user_id, email, status, invited_at, accepted_at, created_by)
+values ('d7e8f9a0-1b2c-5d3e-8f4a-5b6c7d8e9f01', '08f4a9f4-2d61-5c9a-b683-d1d1013f181b', '150fb138-7acf-5a2e-9f37-9d20f0241c89', 'c3d1f6a2-5e7b-5c4d-9a8e-1f2b3c4d5e6f', 'vendor@cre.local', 'active', now(), now(), '5b7bced6-8e6d-50c8-8328-0d9598fdf883')
+on conflict (id) do nothing;
+
+-- Assign Cool Air HVAC; the assignment trigger starts each at pending_acceptance.
+update ops.work_orders set vendor_id = '150fb138-7acf-5a2e-9f37-9d20f0241c89'
+where id in ('2a6c5f81-9ac5-5601-b713-6b9f4551d79c', '79eb661a-80dc-533e-8082-57649bf2286f', '3e40326a-9fe9-576f-b02f-53ec3f59cf31')
+  and vendor_id is distinct from '150fb138-7acf-5a2e-9f37-9d20f0241c89';
+
+-- Spread the queue across filters: needs response, in progress, completed.
+update ops.work_orders set vendor_assignment_status = 'in_progress', vendor_responded_at = now()
+where id = '79eb661a-80dc-533e-8082-57649bf2286f';
+update ops.work_orders set vendor_assignment_status = 'completed', vendor_responded_at = now(), vendor_completed_at = now()
+where id = '3e40326a-9fe9-576f-b02f-53ec3f59cf31';

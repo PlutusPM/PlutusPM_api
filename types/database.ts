@@ -1,5 +1,5 @@
 // types/database.ts - Complete Supabase TypeScript Types for PlutusPM CRE SaaS
-// Generated manually from migrations 00000-00015
+// Generated manually from migrations 00000-00043
 // Use: import { Database } from './types/database'
 // For Supabase JS: createClient<Database>(URL, KEY)
 
@@ -75,6 +75,73 @@ export type Database = {
           updated_at?: string
         }
       }
+      kiosk_staff_pins: {
+        Row: {
+          id: string
+          org_id: string
+          user_id: string
+          pin_hash: string
+          failed_attempts: number
+          locked_until: string | null
+          last_failed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          user_id: string
+          pin_hash: string
+          failed_attempts?: number
+          locked_until?: string | null
+          last_failed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          user_id?: string
+          pin_hash?: string
+          failed_attempts?: number
+          locked_until?: string | null
+          last_failed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      kiosk_staff_pin_attempts: {
+        Row: {
+          id: string
+          org_id: string
+          site_id: string | null
+          user_id: string
+          attempted_by: string | null
+          succeeded: boolean
+          reason: string | null
+          attempted_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          site_id?: string | null
+          user_id: string
+          attempted_by?: string | null
+          succeeded?: boolean
+          reason?: string | null
+          attempted_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          site_id?: string | null
+          user_id?: string
+          attempted_by?: string | null
+          succeeded?: boolean
+          reason?: string | null
+          attempted_at?: string
+        }
+      }
       memberships: {
         Row: {
           id: string
@@ -128,7 +195,7 @@ export type Database = {
           org_id: string
           site_id: string | null
           user_id: string | null
-          type: 'sla_breach' | 'coi_expiring' | 'coi_expired' | 'work_order_assigned' | 'service_request_created' | 'visitor_arrived' | 'lease_expiring' | 'compliance_issue' | 'system' | 'report_ready' | 'reservation_reminder' | 'contract_expiring' | 'contract_expired' | 'document_expiring'
+          type: 'sla_breach' | 'coi_expiring' | 'coi_expired' | 'work_order_assigned' | 'service_request_created' | 'visitor_arrived' | 'lease_expiring' | 'compliance_issue' | 'system' | 'report_ready' | 'reservation_reminder' | 'contract_expiring' | 'contract_expired' | 'document_expiring' | 'vendor_work_order_review'
           title: string
           body: string | null
           payload: Json
@@ -342,6 +409,11 @@ export type Database = {
           status: 'open' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled' | 'overdue'
           assigned_to: string | null
           vendor_id: string | null
+          vendor_assignment_status: 'unassigned' | 'pending_acceptance' | 'accepted' | 'declined' | 'in_progress' | 'on_hold' | 'completed_pending_review' | 'completed' | 'cancelled'
+          vendor_assigned_at: string | null
+          vendor_responded_at: string | null
+          vendor_decline_reason: string | null
+          vendor_completed_at: string | null
           created_by: string | null
           due_date: string | null
           sla_due_at: string | null
@@ -847,6 +919,50 @@ export type Database = {
           metadata: Json
           created_at: string
           updated_at: string
+        }
+      }
+      vendor_users: {
+        Row: {
+          id: string
+          org_id: string
+          vendor_id: string
+          user_id: string | null
+          email: string
+          status: 'invited' | 'active' | 'suspended'
+          invited_at: string
+          accepted_at: string | null
+          last_login_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          vendor_id: string
+          user_id?: string | null
+          email: string
+          status?: 'invited' | 'active' | 'suspended'
+          invited_at?: string
+          accepted_at?: string | null
+          last_login_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          vendor_id?: string
+          user_id?: string | null
+          email?: string
+          status?: 'invited' | 'active' | 'suspended'
+          invited_at?: string
+          accepted_at?: string | null
+          last_login_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       vendor_contacts: {
